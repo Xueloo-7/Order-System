@@ -1,0 +1,488 @@
+#include <iostream>
+#include <ctime>
+#include <iomanip>
+#include <string>
+
+using namespace std;
+void ViewMainMenu();
+void ViewCustomerMenu();
+void ViewOrder();
+void ViewDiscountInfo();
+void ViewCurrentOrder();
+double ViewOrderSummary();
+void ViewPaymentMethod();
+
+void Order();
+void ClearOrderItem();
+void SubmitOneOrder(int medical_Index, int count);
+double GetDiscountPercent(int medical_Index, int count);
+
+void Pay(double totalPrice);
+void ShowReceipt(string payment_method, string payment_date, string payment_time);
+
+void ShowReport();
+
+string GetCurrentDate();
+string GetCurrentTime();
+
+// Dynamic Data
+char userInput;
+string userName;
+int orderItem[3]; // Record item's order count
+int orderIndex = 0; // Latest Order No.
+
+// Static Data
+double company_income;
+double customer_avarage_payment;
+string record_name[1000];
+double record_payment[1000];
+string record_payment_date[1000];
+
+// Important Data
+double itemPrice[3] = { 7.80, 11.50, 6.66 };
+
+
+//要求：
+//流畅切换界面
+
+int main()
+{
+	ViewMainMenu();
+
+	return 0;
+}
+
+///////////////////////////////// UI /////////////////////////////////
+
+void ViewMainMenu()
+{
+	//显示UI
+	//选项：You are CUSTOMER or STAFF? > 
+	//STAFF > 进入员工界面
+	//输入E返回或者Enter查看报告
+	//CUSTOMER > 进入顾客界面
+	system("cls");
+	cout << "< Main Menu >" << endl;
+	cout << "You are CUSTOMER or STAFF?(C/S) > ";
+	cin >> userInput;
+
+	if (userInput == 's' || userInput == 'S')
+	{
+		do
+		{
+			cout << "E > Back | Y > Report : ";
+			cin >> userInput;
+			if (userInput == 'e' || userInput == 'E')
+				ViewMainMenu();
+			else if (userInput == 'y' || userInput == 'Y')
+				ShowReport();
+			else
+			{
+				cout << "Invalid input, please re-input" << endl;
+				userInput = '!';
+			}
+		} while (userInput == '!');
+	}
+	else if (userInput == 'c' || userInput == 'C')
+	{
+		cout << "Please write your name > ";
+		cin >> userName;
+		ViewCustomerMenu();
+	}
+}
+
+void ViewCustomerMenu()
+{
+	system("cls");
+	cout << "< Customer Menu >" << endl;
+	cout << "Here is Order Menu: " << endl;
+	ViewOrder();
+	cout << "Here is Discount Infomation: " << endl;
+	ViewDiscountInfo();
+	do
+	{
+		cout << "E > Back | Y > Order : ";
+		cin >> userInput;
+		if (userInput == 'e' || userInput == 'E')
+			ViewMainMenu();
+		else if (userInput == 'y' || userInput == 'Y')
+		{
+			ClearOrderItem(); // To make new order, clear order before
+			if(orderIndex < 1000)
+				Order();
+			else
+			{
+				cout << "Order reach max of limit..." << endl;
+				system("pause");
+				ViewMainMenu();
+			}
+		}
+		else
+		{
+			cout << "Invalid input, please re-input" << endl;
+			userInput = '!';
+		}
+	} while (userInput == '!');
+}
+
+void ViewOrder()
+{
+	int a = 20, b = 15;
+	cout << '+' << right << setw(a) << setfill('-') << '+' << setw(b) << '+' << endl;
+	cout << left << setw(a) << setfill(' ') << "| Medical" << '|' << right << setw(b) << "Price(RM) |" << endl;
+	cout << '+' << right << setw(a) << setfill('-') << '+' << setw(b) << '+' << endl;
+	cout << left << setw(a) << setfill(' ') << "| 1.Burger" << '|' << right << setw(b) << "7.80 |" << endl;
+	cout << left << setw(a) << setfill(' ') << "| 2.Pizza" << '|' << right << setw(b) << "11.50 |" << endl;
+	cout << left << setw(a) << setfill(' ') << "| 3.Cheese Burger ~" << '|' << right << setw(b) << "6.66 |" << endl;
+	cout << '+' << right << setw(a) << setfill('-') << '+' << setw(b) << '+' << endl;
+	cout << "\n" << endl;
+}
+
+void ViewDiscountInfo()
+{
+	int a = 20, b = 30, c = 15;
+	cout << '+' << right << setw(a) << setfill('-') << '+' << setw(b) << '+' << setw(c) << '+' << endl;
+	cout << left << setw(a) << setfill(' ') << "| Medical" << setw(b) << "| Requirement Spend(RM)" << setw(c) << "| Discount(%)" << "|" << endl;
+	cout << '+' << right << setw(a) << setfill('-') << '+' << setw(b) << '+' << setw(c) << '+' << endl;
+	cout << left << setw(a) << setfill(' ') << "| 1.Burger" << setw(b) << "| Greater or equal than 30" << setw(c) << "| 25" << "|" << endl;
+	cout << left << setw(a) << setfill(' ') << "| "<< setw(b) << "| Less than 30" << setw(c) << "| 20" << "|" << endl;
+	cout << left << setw(a) << setfill(' ') << "| 2.Pizza" << setw(b) << "| Greater or equal than 50" << setw(c) << "| 20" << "|" << endl;
+	cout << left << setw(a) << setfill(' ') << "| " << setw(b) << "| Less than 50" << setw(c) << "| 15" << "|" << endl;
+	cout << left << setw(a) << setfill(' ') << "| 3.Cheese Burger ~"  << setw(b) << "| Greater or equal than 1" << setw(c) << "| 66" << "|" << endl;
+	cout << left << setw(a) << setfill(' ') << "| " << setw(b) << "| Less than 1" << setw(c) << "| 0" << "|" << endl;
+	cout << '+' << right << setw(a) << setfill('-') << '+' << setw(b) << '+' << setw(c) << '+' << endl;
+	cout << "\n" << endl;
+}
+
+void ViewCurrentOrder()
+{
+	int a = 20, b = 12, c = 12;
+	cout << '+' << right << setw(a) << setfill('-') << '+' << setw(b) << '+' << setw(c) << '+' << endl;
+	cout << left << setw(a) << setfill(' ') << "| Order" << setw(b) << "| Price(RM)" << setw(c) << "| Count" << "|" << endl;
+	cout << '+' << right << setw(a) << setfill('-') << '+' << setw(b) << '+' << setw(c) << '+' << endl;
+
+	if (orderItem[0] > 0)
+		cout << left << setw(a) << setfill(' ') << "| 1.Burger" << setw(b) << "| 7.80" << "| " << setw(c - 2) << orderItem[0] << "|" << endl;
+	if (orderItem[1] > 0)
+		cout << left << setw(a) << setfill(' ') << "| 2.Pizza" << setw(b) << "| 11.50" << "| " << setw(c - 2) << orderItem[1] << "|" << endl;
+	if (orderItem[2] > 0)
+		cout << left << setw(a) << setfill(' ') << "| 3.Cheese Burger ~" << setw(b) << "| 6.66" << "| " << setw(c - 2) << orderItem[2] << "|" << endl;
+
+	cout << '+' << right << setw(a) << setfill('-') << '+' << setw(b) << '+' << setw(c) << '+' << endl;
+	cout << "\n" << endl;
+}
+
+double ViewOrderSummary()
+{
+	double subtotal[3];
+	subtotal[0] = orderItem[0] * itemPrice[0];
+	subtotal[1] = orderItem[1] * itemPrice[1];
+	subtotal[2] = orderItem[2] * itemPrice[2];
+	double discount[3];
+	discount[0] = (GetDiscountPercent(0, orderItem[0]) / 100) * subtotal[0];
+	discount[1] = (GetDiscountPercent(1, orderItem[1]) / 100) * subtotal[1];
+	discount[2] = (GetDiscountPercent(2, orderItem[2]) / 100) * subtotal[2];
+	double payable[3];
+	payable[0] = subtotal[0] - discount[0];
+	payable[1] = subtotal[1] - discount[1];
+	payable[2] = subtotal[2] - discount[2];
+	double total = subtotal[0] + subtotal[1] + subtotal[2];
+	double total_discount = discount[0] + discount[1] + discount[2];	
+	double total_payable = (payable[0] + payable[1] + payable[2]);
+	double tax_rate = 10;
+	total_payable -= total_payable * (tax_rate / 100);
+
+	int a = 20, b = 17, c = 12, d = 17, e = 16;
+	cout << '+' << right << setw(a) << setfill('-') << '+' << setw(b) << '+' << setw(c) << '+' << setw(d) << '+' << setw(e) << '+' << endl;
+	cout << left << setw(a) << setfill(' ') << "| Order" << setw(b) << "| Unit Price(RM)" << setw(c) << "| Subtotal" << setw(d) << "| Discount"  << setw(e) << "| Payable" << "|" << endl;
+	cout << '+' << right << setw(a) << setfill('-') << '+' << setw(b) << '+' << setw(c) << '+' << setw(d) << '+' << setw(e) << '+' << endl;
+	if(orderItem[0] > 0)
+		cout << left << setw(a) << setfill(' ') << "| Burger" << "| " << fixed << setprecision(2) << setw(b - 2) << itemPrice[0] << "| " << setw(c - 2) << subtotal[0] << "| " << setw(d - 2) << -discount[0] << "| " << setw(e - 2) << payable[0] << "|" << endl;
+	if (orderItem[1] > 0)
+		cout << left << setw(a) << setfill(' ') << "| Pizza" << "| " << fixed << setprecision(2) << setw(b - 2) << itemPrice[1] << "| " << setw(c - 2) << subtotal[1] << "| " << setw(d - 2) << -discount[1] << "| " << setw(e - 2) << payable[1] << "|" << endl;
+	if (orderItem[2] > 0)
+		cout << left << setw(a) << setfill(' ') << "| Cheese Burger ~" << "| " << fixed << setprecision(2) << setw(b - 2) << itemPrice[2] << "| " << setw(c - 2) << subtotal[2] << "| " << setw(d - 2) << -discount[2] << "| " << setw(e - 2) << payable[2] << "|" << endl;
+	cout << '|' << right << setw(a) << setfill(' ') << '|' << setw(b) << '|' << setw(c) << '|' << setw(d) << '|' << setw(e) << '|' << endl;
+	cout << '+' << right << setw(a) << setfill('-') << '+' << setw(b) << '+' << setw(c) << '+' << setw(d) << '+' << setw(e) << '+' << endl;
+	cout << left << setw(a) << setfill(' ') << "| " << setw(b) << "| Tax Rate(%)" << setw(c) << "| Total" << setw(d) << "| Total_Discount"  << setw(e) << "| Total_Payable" << "|" << endl;
+	cout << '+' << right << setw(a) << setfill('-') << '+' << setw(b) << '+' << setw(c) << '+' << setw(d) << '+' << setw(e) << '+' << endl;
+	cout << left << setw(a) << setfill(' ') << "| " << "| " << fixed << setprecision(2) << setw(b - 2) << tax_rate << "| " << setw(c - 2) << total << "| " << setw(d - 2) << -total_discount << "| " << setw(e - 2) << total_payable << "|" << endl;
+	cout << '|' << right << setw(a) << setfill(' ') << '|' << setw(b) << '|' << setw(c) << '|' << setw(d) << '|' << setw(e) << '|' << endl;
+	cout << '+' << right << setw(a) << setfill('-') << '+' << setw(b) << '+' << setw(c) << '+' << setw(d) << '+' << setw(e) << '+' << endl;
+
+	return total_payable;
+}
+
+void ViewPaymentMethod()
+{
+	cout << left << setw(25) << setfill('-') << "+" << "-+" << endl;
+	cout << left << setw(25) << setfill(' ') << "| Payment Method" << " |" << endl;
+	cout << left << setw(25) << setfill('-') << "+" << "-+" << endl;
+	cout << left << setw(25) << setfill(' ') << "| 1.Cash" << " |" << endl;
+	cout << left << setw(25) << setfill(' ') << "| 2.Debit/Credit Card" << " |" << endl;
+	cout << left << setw(25) << setfill(' ') << "| 3.Touch n Go" << " |" << endl;
+	cout << left << setw(25) << setfill('-') << "+" << "-+" << endl;
+}
+
+///////////////////////////////// Order /////////////////////////////////
+
+void Order()
+{
+	system("cls");
+	ViewOrder();
+	ViewDiscountInfo();
+	ViewCurrentOrder();
+
+	int medical_Index;
+	double price;
+	int qty;
+	
+	cout << "Select(1~3) > ";
+	do
+	{
+		cin >> userInput;
+		switch (userInput)
+		{
+		case '1':
+			medical_Index = 0;
+			price = 7.80; break;
+		case '2':
+			medical_Index = 1;
+			price = 11.50; break;
+		case '3':
+			medical_Index = 2;
+			price = 6.66; break;
+		default:
+			cout << "Invalid input, please re-input > ";
+			userInput = '!'; break;
+		}
+	} while (userInput == '!');
+
+	cout << "Quantity > ";
+	cin >> qty;
+
+	SubmitOneOrder(medical_Index, qty);
+
+	cout << "Continue > C | Confirm > Y :";
+	do
+	{
+		cin >> userInput;
+		if (userInput == 'c' || userInput == 'C')
+			Order();
+		else if (userInput == 'y' || userInput == 'Y')
+		{
+			system("cls");
+			ViewCurrentOrder();
+			double total_payable = ViewOrderSummary();
+
+			cout << endl << endl << "Cancel > C | Confirm > Y : ";
+			do
+			{
+				cin >> userInput;
+				if (userInput == 'c' || userInput == 'C')
+					ViewCustomerMenu();
+				else if (userInput == 'y' || userInput == 'Y')
+					Pay(total_payable);
+				else
+				{
+					cout << "Invalid input, please re-input" << endl;
+					userInput = '!';
+				}
+			} while (userInput == '!');
+		}
+		else
+		{
+			cout << "Invalid input, please re-input > ";
+			userInput = '!';
+		}
+	} while (userInput == '!');
+}
+
+void ClearOrderItem()
+{
+	orderItem[0] = 0;
+	orderItem[1] = 0;
+	orderItem[2] = 0;
+}
+
+void SubmitOneOrder(int medical_Index, int count)
+{
+	orderItem[medical_Index] += count;
+}
+
+double GetDiscountPercent(int medical_Index, int count)
+{
+	double totalPrice = orderItem[medical_Index] * itemPrice[medical_Index];
+	switch (medical_Index)
+	{
+	case 0:
+		if (totalPrice >= 30)
+			return 25;
+		else return 20;
+	case 1:
+		if (totalPrice >= 50)
+			return 20;
+		else return 15;
+	case 2:
+		if (totalPrice >= 1)
+			return 66;
+		else return 0;
+	default: return 0;
+	}
+}
+
+///////////////////////////////// Payment /////////////////////////////////
+
+void Pay(double totalPrice)
+{
+	system("cls");
+	ViewPaymentMethod();
+
+	string select_payment_method;
+	cout << endl << "Select(1~3) > ";
+	do
+	{
+		cin >> userInput;
+		switch (userInput)
+		{
+		case '1':
+			cout << "You select Cash Payment, the payment is processing..." << endl;
+			select_payment_method = "Cash"; break;
+		case '2':
+			cout << "You select Credit/Debit Card Payment, the payment is processing..." << endl;
+			select_payment_method = "Credit/Debit Card"; break;
+		case '3':
+			cout << "You select Touch n Go Payment, the payment is processing..." << endl; 
+			select_payment_method = "Touch n Go"; break;
+		default:
+			cout << "Invalid input, please re-input > ";
+			userInput = '!';
+			break;
+		}
+	} while (userInput == '!');
+
+	system("pause");
+
+	// Payment success
+	company_income += totalPrice;
+	customer_avarage_payment = company_income / (orderIndex + 1);
+	record_name[orderIndex] = userName;
+	record_payment[orderIndex] = totalPrice;
+	string payment_date = GetCurrentDate();
+	string payment_time = GetCurrentTime();
+	record_payment_date[orderIndex] = payment_date + " / " + payment_time;
+	orderIndex++;
+
+	cout << endl << "Payment success! Do you want to see receipt?\nBack to Menu > N | Yes > Y : ";
+	do
+	{
+		cin >> userInput;
+		if (userInput == 'n' || userInput == 'N')
+			ViewCustomerMenu();
+		else if (userInput == 'y' || userInput == 'Y')
+			ShowReceipt(select_payment_method, payment_date, payment_time);
+		else
+		{
+			cout << "Invalid input, please re-input > ";
+			userInput = '!';
+		}
+	} while (userInput == '!');
+}
+
+void ShowReceipt(string payment_method, string payment_date, string payment_time)
+{
+	system("cls");
+	cout << "Receipt" << endl;
+	int a = 20, b = 17, c = 12, d = 17, e = 16;
+	cout << '+' << right << setw(a) << setfill('-') << '-' << setw(b) << '-' << setw(c) << '-' << setw(d) << '-' << setw(e) << '+' << endl;
+	cout << "| Company : " << left << setw(a + b) << setfill(' ') << "miHoYo Pharmaceutical Co., Ltd."  << right << setw(c + d + 3) << "" << " |" << endl;
+	cout << "| Customer: " << left << setw(a + b) << setfill(' ') << userName  << right << setw(c + d + 3) << "Invoice No. : M" + to_string(1000 + orderIndex -1)  << " |" << endl;
+	cout << "| Sold by : " << left << setw(a + b) << setfill(' ') << "miPha Store" << right << setw(c + d + 3) << "Invoice Date. : " + payment_date << " |" << endl;
+	ViewOrderSummary();
+	cout << '|' << left << setw(a + b + c) << setfill(' ') << " Payment Method: " + payment_method << right << setw(c + d + 3) << "" << '|' << endl;
+	cout << '|' << left << setw(a + b + c) << setfill(' ') << " Payment Time: " + payment_time << right << setw(c + d + 3) << "" << '|' << endl;
+	cout << '+' << right << setw(a) << setfill('-') << '-' << setw(b) << '-' << setw(c) << '-' << setw(d) << '-' << setw(e) << '+' << endl;
+
+	cout << endl << "Back to Menu > Y: ";
+	do
+	{
+		cin >> userInput;
+		if (userInput == 'y' || userInput == 'Y')
+			ViewCustomerMenu();
+		else
+		{
+			cout << "Invalid input, please re-input > ";
+			userInput = '!';
+		}
+	} while (userInput == '!');
+}
+
+///////////////////////////////// Report /////////////////////////////////
+
+void ShowReport()
+{
+	system("cls");
+	cout << "< Report Menu >" << endl;
+	cout << "\nCompany total income: RM" << fixed << setprecision(2) << company_income << endl;
+	cout << "Customer average payment: RM" << fixed << setprecision(2) << customer_avarage_payment << endl;
+	cout << endl;
+	cout << "Order record" << endl;
+	cout << "------------" << endl;
+	for (int i = 0; i < orderIndex; i++) {
+		cout << left << setw(25) << setfill('_') << "M" + to_string(1000 + i) + ". " + record_name[i]
+			<< " pay RM" << setw(10) << fixed << setprecision(2) << record_payment[i]
+			<< " at " << setw(15) << record_payment_date[i] << endl;
+	}
+	
+
+	cout << endl << "Back to Menu > Y: ";
+	do
+	{
+		cin >> userInput;
+		if (userInput == 'y' || userInput == 'Y')
+			ViewMainMenu();
+		else
+		{
+			cout << "Invalid input, please re-input > ";
+			userInput = '!';
+		}
+	} while (userInput == '!');
+}
+
+///////////////////////////////// Functions /////////////////////////////////
+
+string GetCurrentDate()
+{
+	// 获取当前时间
+	time_t now = time(nullptr);
+	// 创建一个 tm 结构来保存本地时间
+	tm localTime;
+	// 转换为本地时间
+	localtime_s(&localTime, &now);
+
+	string date = to_string(1900 + localTime.tm_year) + "-" + to_string(1 + localTime.tm_mon) + "-" + to_string(localTime.tm_mday);
+
+	return date;
+}
+
+string GetCurrentTime()
+{
+	// 获取当前时间
+	time_t now = time(nullptr);
+	// 创建一个 tm 结构来保存本地时间
+	tm localTime;
+	// 转换为本地时间
+	localtime_s(&localTime, &now);
+
+	string min = to_string(localTime.tm_min);
+	string sec = to_string(localTime.tm_sec);
+
+	if (localTime.tm_min < 10)
+		min = "0" + min;
+	if (localTime.tm_sec < 10)
+		sec = "0" + sec;
+
+	string time = to_string(localTime.tm_hour) + ":" + min + ":" + sec;
+
+	return time;
+}
