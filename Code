@@ -41,10 +41,6 @@ string record_payment_date[1000];
 // Important Data
 double itemPrice[3] = { 7.80, 11.50, 6.66 };
 
-
-//要求：
-//流畅切换界面
-
 int main()
 {
 	ViewMainMenu();
@@ -56,11 +52,6 @@ int main()
 
 void ViewMainMenu()
 {
-	//显示UI
-	//选项：You are CUSTOMER or STAFF? > 
-	//STAFF > 进入员工界面
-	//输入E返回或者Enter查看报告
-	//CUSTOMER > 进入顾客界面
 	system("cls");
 	cout << "< Main Menu >" << endl;
 	cout << "You are CUSTOMER or STAFF?(C/S) > ";
