@@ -1,479 +1,571 @@
 #include <iostream>
-#include <ctime>
 #include <iomanip>
 #include <string>
-
+#include <map>
+#include <conio.h>
 using namespace std;
-void ViewMainMenu();
-void ViewCustomerMenu();
-void ViewOrder();
-void ViewDiscountInfo();
-void ViewCurrentOrder();
-double ViewOrderSummary();
-void ViewPaymentMethod();
 
-void Order();
-void ClearOrderItem();
-void SubmitOneOrder(int medical_Index, int count);
-double GetDiscountPercent(int medical_Index, int count);
+#pragma region Color
+const string YELLOW = "\033[33m";
+const string RED = "\033[31m";
+const string BLUE = "\033[34m";
+const string GREEN = "\033[32m";
+const string ORANGE = "\033[38;5;214m";
+const string PINK = "\033[38;5;213m";
+const string RESET = "\033[0m";
+#pragma endregion
 
-void Pay(double totalPrice);
-void ShowReceipt(string payment_method, string payment_date, string payment_time);
+struct Item {
+	string name;
+	double price;
+};
 
-void ShowReport();
+struct OrderDetail {
+	map<int, int> orderItems;
+	double subtotal = 0, discount = 0, totalPayable = 0;
+	int totalItemCount = 0;
+};
 
-string GetCurrentDate();
-string GetCurrentTime();
+struct CustomerReceipt {
+	string name = "None";
+	int invoiceNo = 0;
+	tm paymentTime = {};
+	bool isMember = false;
+	OrderDetail orderDetail;
+	string paymentMethod = "None";
+};
 
-// Dynamic Data
-char userInput;
-string userName;
-int orderItem[3]; // Record item's order count
-int orderIndex = 0; // Latest Order No.
+struct LoginData {
+	string username, email, password;
+	bool isMember = false;
+	LoginData() : username("None"), email("None"), password("None"), isMember(false) {}
+	LoginData(string username, string email, string password, bool isMember)
+	{
+		this->username = username;
+		this->email = email;
+		this->password = password;
+		this->isMember = isMember;
+	}
+};
 
-// Static Data
-double company_income;
-double customer_avarage_payment;
-string record_name[1000];
-double record_payment[1000];
-string record_payment_date[1000];
+map<string, bool> bookedTime;
+int bookedID[3];
+const string bookingTime[3] = { "2:00pm  - Room 404 - Doctor Qi Sheng",
+								"4:00pm  - Room 67  - Doctor Jikkennugget",
+								"6:00pm  - Room 69  - Doctor Jun Yang" };
+const Item items[5] = { { "Panadol", 5.50 }, { "Aspirin", 8.70 }, { "Claritin", 20.00 }, { "Zyrtec", 23.20 }, { "Imodium", 17.30 } };
 
-// Important Data
-double itemPrice[3] = { 7.80, 11.50, 6.66 };
+CustomerReceipt cr[100];
+CustomerReceipt currentCustomer;
+LoginData loginData[100];
+int cr_count, loginData_count;
 
-int main()
+char confirm;
+double review;
+
+int main();
+void customerMenu();
+void staffMenu();
+void customer_order(bool clearOrder, bool orderConfirm);
+void customer_booking();
+
+void displayError(string hint) {
+	cout << '\n' << RED << "Error: " << hint << RESET << '\n';
+}
+void clearCin() {
+	cin.clear();
+	cin.ignore(numeric_limits<streamsize>::max(), '\n');
+}
+int choice(int min, int max, string hint = "Choice") {
+	double choice; string error;
+	do {
+		error.clear();
+		cout << endl << RED << hint << " -> " << RESET;
+		cin >> choice;
+		// 判断
+		if (cin.fail()) error = "Input is not number";
+		else if (choice != (int)choice) error = "Number is not an integer";
+		else if (choice < min || choice > max) error = "Number out of range(" + to_string(min) + '~' + to_string(max) + ')';
+		// 提示错误
+		if (!error.empty()) displayError(error);
+		clearCin();
+	} while (!error.empty());
+	return (int)choice;
+}
+string getString(int maxLength, bool supportDigit, bool onlyEnglish, bool visible, string hint = "Input") {
+    string input, error;
+    do {
+        error.clear(); input.clear();
+		cout << endl << BLUE << hint << " -> " << RESET;
+        // 处理可见性
+        if (visible) {
+            getline(cin, input);
+        }
+        else {
+            char ch;
+            while ((ch = _getch()) != '\r') {
+                // 退格处理
+                if (ch == '\b') {
+                    if (!input.empty()) {
+                        cout << "\b \b"; // 回退光标并清空字符
+                        input.pop_back();
+                    }
+                }
+                else if (ch != '\t' && ch != '\n' && ch != ' ') { // 忽略 '\t' 和 '\n' 和 空格
+                    input += ch; // 添加字符到输入
+                    cout << '*'; // 显示星号
+                }
+            }
+            cout << endl; // 输入完成后换行
+        }
+        // 判断输入的有效性
+        if (input.length() > maxLength) error = "Max length of input is " + to_string(maxLength);
+		else if(input.length() == 0) error = "Input is null";
+        else {
+            if (onlyEnglish) for (char c : input) if(!isalnum(c) && c != ' ' && c != '@' && c != '.') error = "Input only supports English characters";
+            if (!supportDigit) for (char c : input) if(isdigit(c)) error = "Input does not support numbers";
+        }
+        // 提示错误信息
+		if (!error.empty()) displayError(error);
+    } while (!error.empty());
+    return input; // 返回有效输入
+}
+char getChar(string hint = "Select")
 {
-	ViewMainMenu();
+	string input;
+	cout << endl << BLUE << hint << " -> " << RESET;
+	cin >> input;
+	clearCin();
+	if (input.length() == 1) return toupper(input[0]);
+	else return ' ';
+}
+void waitfor(char input) {
+	while (_getch() != input) {}
+}
+tm currentTime()
+{
+	time_t currentTime = time(nullptr);
+	tm localTime;
+	localtime_s(&localTime, &currentTime);
+	return localTime;
+}
+
+void logo() {
+	cout << GREEN << "========================================" << endl;
+	cout << YELLOW << "@@         " << BLUE << "&&&&&&&    " << YELLOW << "@@         " << BLUE << "&&&&&&&" << endl;
+	cout << YELLOW << "@@         " << BLUE << "&          " << YELLOW << "@@         " << BLUE << "&" << endl;
+	cout << YELLOW << "@@         " << BLUE << "&          " << YELLOW << "@@         " << BLUE << "&" << endl;
+	cout << YELLOW << "@@         " << BLUE << "&          " << YELLOW << "@@         " << BLUE << "&" << endl;
+	cout << YELLOW << "@@@@@@@    " << BLUE << "&&&&&&&    " << YELLOW << "@@@@@@@    " << BLUE << "&&&&&&&" << endl;
+	cout << GREEN << "========================================" << endl;
+	cout << RESET;
+}
+void signUp() {
+	system("cls"); logo();
+	string username, email, password, confirm_password;
+	bool isMember;
+	username = getString(20, false, true, true, "Enter username");
+	email = getString(30, true, true, true, "Enter email");
+	do {
+		password = getString(15, true, true, false, "Enter password");
+		confirm_password = getString(15, true, true, false, "Confirm password");
+		if (confirm_password != password) displayError("Password is not match");
+	} while (confirm_password != password);
+	do {
+		confirm = getChar("Become a membership? (Y/N)");
+		isMember = confirm == 'Y';
+		if(confirm != 'Y' && confirm != 'N') displayError("Invalid input");
+	} while (confirm != 'Y' && confirm != 'N');
+	cout << "\nPreview\n";
+	cout << "username: " << username << endl;
+	cout << "email: " << email << endl;
+	cout << "password: " << password << endl;
+	cout << "membership" << (isMember ? "Yes" : "No") << endl;
+	do {
+		confirm = getChar("Confirm SignUp? (Y/N)");
+		if (confirm == 'Y') {
+			for (int i = 0; i < 100; i++) {
+				if (email == loginData[i].email) {
+					displayError("Error: This email is already exist...");
+					waitfor('\r'); main(); return;
+				}
+			}
+			loginData[loginData_count] = LoginData(username, email, password, isMember);
+			loginData_count++;
+			cout << YELLOW << "\nSignUp successfully, you can login now..." << RESET;
+			waitfor('\r'); main(); return;
+		}
+		else if (confirm == 'N') {
+			main(); return;
+		}
+		else cout << RED << "\nError: Invalid input" << RESET << endl;
+	} while (confirm != 'Y' && confirm != 'N');
+	
+}
+string signIn() {
+	system("cls"); logo();
+	string email, password;
+	email = getString(30, true, true, true, "Enter email");
+	password = getString(15, true, true, false, "Enter password");
+	for (int i = 0; i < 100; i++) {
+		if (loginData[i].email == email) {
+			if (loginData[i].password == password) {
+				currentCustomer.isMember = loginData[i].isMember;
+				currentCustomer.name = loginData[i].username;
+				cout << YELLOW << "\nLogin Successfully, Press enter to continue..." << RESET;
+				waitfor('\r');
+				if (email == "staff@gmail.com") return "staff";
+				else return "customer";
+			}
+			else {
+				displayError("Wrong password");
+				break;
+			}
+		}
+		else if (i == 99) displayError("This email does not exist");
+	}
+	cout << RED << "\nLogin Failed, Press enter to quit..." << RESET;
+	waitfor('\r'); return "";
+}
+
+void showInvoice(bool record) {
+	double subtotal = 0, itemTotal = 0, discount = 0, totalPayable = 0;
+	int totalItemCount = 0;
+	// 计算并显示订单内容
+	for (const auto& orderItem : currentCustomer.orderDetail.orderItems) {
+		subtotal += itemTotal = items[orderItem.first].price * orderItem.second; // 单价 * 数量
+		totalItemCount += orderItem.second;
+		cout << YELLOW << setw(8) << left << items[orderItem.first].name << " ";
+		cout << YELLOW << setw(3) << orderItem.second << " x RM" << fixed << showpoint << setprecision(2) << setw(24) << items[orderItem.first].price;
+		cout << YELLOW << "RM " << setw(7) << right << itemTotal << endl;
+	}
+	// 计算和显示发票细节
+	if (currentCustomer.isMember) discount = subtotal * 0.10;
+	double serviceCharge = subtotal * 0.05;
+	double tax = subtotal * 0.06;
+	totalPayable = subtotal - discount + serviceCharge + tax;
+
+	if (record) {
+		currentCustomer.invoiceNo++; // 发票编号递增
+		currentCustomer.orderDetail.subtotal = subtotal; // 保存小计
+		currentCustomer.orderDetail.discount = discount;
+		currentCustomer.orderDetail.totalItemCount = totalItemCount; // 保存总物品数量
+		currentCustomer.orderDetail.totalPayable = totalPayable; // 保存应付总额g
+	}
+
+	cout << RESET << setw(51) << right << "------------" << endl;
+	cout << YELLOW << setw(41) << left << "Invoice No." + to_string(currentCustomer.invoiceNo) << endl;
+	cout << YELLOW << setw(41) << left << "Subtotal" << "RM " << setw(7) << right << subtotal << endl;
+	cout << YELLOW << setw(39) << left << "Discount" << "- RM " << setw(7) << right << discount << endl;
+	cout << YELLOW << setw(41) << left << "Service Charge(5%)" << "RM " << setw(7) << right << serviceCharge << endl;
+	cout << YELLOW << setw(41) << left << "Tax(6%)" << "RM " << setw(7) << right << tax << endl;
+	cout << RESET << setw(51) << right << "------------" << endl;
+	cout << YELLOW << setw(41) << left << "Total payable:" << "RM " << setw(7) << right << totalPayable << endl << RESET;
+	cout << YELLOW << "Total items: " << totalItemCount << endl;
+}
+void printReceipt(string paymentMethod) {
+	system("cls"); logo();
+	cout << ORANGE << "\n===================================================" << endl;
+	cout << YELLOW << "                      Receipt                      " << endl;
+	cout << ORANGE << "===================================================" << endl;
+
+	showInvoice(false); // 显示发票
+
+	cout << YELLOW << setw(41) << left << "Payment method:" << paymentMethod << endl;
+	cout << YELLOW << setw(41) << left << "Payment amount:" << currentCustomer.orderDetail.totalPayable << endl << RESET;
+	
+	currentCustomer.paymentMethod = paymentMethod;
+	currentCustomer.paymentTime = currentTime();
+	cr[cr_count] = currentCustomer;
+	cr_count++;
+	currentCustomer.orderDetail.orderItems.clear(); // 清空订单
+
+	review = (double)((review + choice(1, 5, "Give us a review! (1~5)")) / cr_count);
+	do {
+		confirm = getChar("Quit(Y)");
+	} while (confirm != 'Y');
+	customerMenu(); return;
+}
+void printInvoice() {
+	system("cls"); logo();
+	cout << ORANGE << "\n===================================================" << endl;
+	cout << YELLOW << "                      Invoice                      " << endl;
+	cout << ORANGE << "===================================================" << endl;
+
+	showInvoice(true); // 显示发票
+
+	do {
+		confirm = getChar(BLUE + "Confirm Order? (Y/N)");
+		if (confirm == 'N') {
+			customer_order(true, true); // 返回订单
+			return;
+		}
+		else if (confirm != 'Y') displayError("Invalid input");
+	} while (confirm != 'Y' && confirm != 'N');
+
+	do {
+		confirm = getChar(BLUE + "Select your payment method (E-wallet(W) / DebitCard(D) / Cash(C))");
+		if (confirm != 'W' && confirm != 'D' && confirm != 'C') displayError("Invalid input");
+		else {
+			switch (confirm) {
+			case 'W': printReceipt("E-wallet"); return;
+			case 'D': printReceipt("Debit Card"); return;
+			case 'C': printReceipt("Cash"); return;
+			}
+		}
+	} while (confirm != 'W' && confirm != 'D' && confirm != 'C');
+}
+void customer_order(bool clearOrder, bool orderConfirm) {
+	system("cls"); logo();
+	cout << ORANGE << "\nOrder Menu\n" << GREEN;
+	cout << left << setw(20) << "Item" << right << setw(17) << "Unit Price" << endl;
+	cout << string(37, '-') << endl;
+	for (int i = 0; i < 5; i++) {
+		cout << left << setw(20) << to_string(i + 1) + "." + items[i].name
+			<< right << setw(9) << "RM" << setw(8) << fixed << setprecision(2) << items[i].price
+			<< endl;
+	}
+
+	if(clearOrder) currentCustomer.orderDetail.orderItems.clear();
+	if (orderConfirm) {
+		do {
+			confirm = getChar("Order? (Y/N)");
+			if (confirm == 'N') {
+				customerMenu(); return;
+			}
+			else if (confirm != 'Y') displayError("Invalid input");
+		} while (confirm != 'Y' && confirm != 'N');
+	}
+	
+	int select = choice(1, 5, "Select item");
+	int quantity = choice(1, 100, "Item quantity");
+	currentCustomer.orderDetail.orderItems[select - 1] += quantity;
+	
+	do {
+		confirm = getChar("Anymore Order? (Y/N)");
+		if (confirm == 'Y') customer_order(false, false);
+		else if (confirm == 'N') printInvoice();
+		else displayError("Invalid input");
+	} while (confirm != 'Y' && confirm != 'N');
+}
+
+void takeNumber() {
+	system("cls"); logo();
+	cout << ORANGE << "\nTake Attend Number Menu\n" << GREEN;
+	int select = 0;
+	// 判断是否满了
+	bool isFull = true, isBooked = false;
+	for (int i = 0; i < 3; i++) {
+		if (bookedTime[bookingTime[i]] == false)
+			isFull = false;
+	}
+	if(isFull)
+		cout << RED << "\nTime slot full today" << GREEN << endl;
+	else {
+		// 显示
+		for (int i = 0; i < 3; i++) {
+			if (bookedTime[bookingTime[i]] == true)
+				cout << i + 1 << "." << bookingTime[i] << RED << " [Not Available] " << GREEN << endl;
+			else
+				cout << i + 1 << "." << bookingTime[i] << endl;
+		}
+		do {
+			confirm = getChar("Booking? (Y/N)");
+			if (confirm == 'N') {
+				customer_booking(); return;
+			}
+			else if (confirm != 'Y') cout << RED << "\nError: Invalid input" << RESET << endl;
+		} while (confirm != 'Y' && confirm != 'N');
+		// 选择
+		select = choice(1, 3);
+		isBooked = bookedTime[bookingTime[select - 1]];
+
+		if (isBooked) {
+			cout << RED << "\nTime slot unavailable." << endl;
+		}
+		else {
+			srand(time(0));
+			int bookingID = rand() % (50000 - 10000 + 1) + 10000;
+			cout << "\nYour booking id is : " << bookingID << ", Please remember!" << endl;
+			do {
+				confirm = getChar("Confirm Booking? (Y/N)");
+				if (confirm == 'Y' || confirm == 'N') {
+					if (confirm == 'Y') {
+						bookedTime[bookingTime[select - 1]] = true;
+						bookedID[select - 1] = bookingID;
+					}
+					customer_booking(); return;
+				}
+				else {
+					cout << RED << "\nError: Invalid input" << RESET << endl;
+				}
+			} while (confirm != 'Y' && confirm != 'N');
+		}
+	}
+
+	do {
+		confirm = getChar("Quit(Y)");
+	} while (confirm != 'Y');
+	customer_booking(); return;
+}
+void attend() {
+	system("cls"); logo();
+	cout << ORANGE << "\nAttend Appointment Menu\n" << GREEN;
+	int enterNumber = choice(0, 99999, "Enter your booking number");
+	bool found = false;
+	for (int i = 0; i < 3; i++) {
+		if (enterNumber == bookedID[i]) {
+			found = true;
+			cout << YELLOW << "\n(" << bookedID[i] << ")" << bookingTime[i] << "." << RESET << endl;
+		}
+	}
+	if(!found) cout << RED << "\nThis id is not exist. Enter to quit." << RESET << endl;
+	
+	do {
+		confirm = getChar("Quit(Y)");
+		if (confirm == 'Y') {
+			customer_booking(); return;
+		}
+	} while (confirm != 'Y');
+}
+void customer_booking() {
+	system("cls"); logo();
+	cout << ORANGE << "\nHealth Check Menu\n" << GREEN;
+	cout << "1.Take booking number\n2.Attend apointment\n3.Back to menu" << RESET << endl;
+	switch (choice(1, 3)) {
+	case 1: takeNumber(); return;
+	case 2: attend(); return;
+	case 3: customerMenu(); return;
+	}
+}
+
+void staff_report() {
+	system("cls"); logo();
+	cout << ORANGE << "\nReport Menu\n" << GREEN;
+
+	double totalEarning = 0;
+	for (const CustomerReceipt c : cr) totalEarning += c.orderDetail.subtotal;
+	cout << "Total earning: " << totalEarning << endl;
+
+	do {
+		confirm = getChar("Quit(Y)");
+	} while (confirm != 'Y');
+	staffMenu(); return;
+}
+void staff_customerReceipt() {
+	system("cls"); logo();
+	cout << ORANGE << "\nCustomer Receipt Menu\n" << GREEN;
+	cout << "=============================================" << endl;
+	cout << "Customer Receipt: " << endl;
+	if (cr_count == 0)
+		cout << "None customer" << endl;
+	else
+	{
+		for (int i = 0; i < cr_count; i++)
+		{
+			cout << "\nInvoice No: " << i + 1 << setw(25) << right
+				<< cr[i].paymentTime.tm_mday << '/'
+				<< cr[i].paymentTime.tm_mon + 1 << '/'
+				<< cr[i].paymentTime.tm_year + 1900
+				<< endl;
+			cout << "Customer Name" << ": " << setw(22) << left
+				<< cr[i].name << setw(2) << right << fixed << setprecision(2)
+				<< cr[i].paymentTime.tm_hour << ':' << setw(2)
+				<< cr[i].paymentTime.tm_min << ':' << setw(2)
+				<< cr[i].paymentTime.tm_sec << endl;
+			if (cr[i].isMember) cout << "[Membership]" << endl;
+			else cout << "[Non-Membership]" << endl;
+	
+			for (const auto& orderItem : cr[i].orderDetail.orderItems)
+			{
+				cout << setw(8) << left << items[orderItem.first].name << " x " << setw(3) << right << orderItem.second
+					<< fixed << showpoint << setprecision(2) << setw(23) << right << "RM" << setw(8)
+					<< right << orderItem.second * items[orderItem.first].price << endl;
+			}
+			cout << setw(45) << right << "-------------" << endl;
+			cout << setw(35) << left << "Discount: " << setw(4) << "-RM" << setw(6) << right << cr[i].orderDetail.discount << endl;
+			cout << setw(45) << right << "-------------" << endl;
+			cout << setw(35) << left << "Total Price: " << setw(3) << "RM" << setw(7) << right << cr[i].orderDetail.subtotal - cr[i].orderDetail.discount << endl;
+			cout << "Payment method : " << cr[i].paymentMethod << endl;
+			cout << "=============================================" << endl;
+		}
+		cout << endl;
+	}
+
+	do {
+		confirm = getChar("Quit(Y)");
+	} while (confirm != 'Y');
+	staffMenu(); return;
+}
+
+void customerMenu() {
+	system("cls"); logo();
+	cout << "Review: ";
+	if (review >= 4) cout << GREEN;
+	else if (review >= 2.5) cout << BLUE;
+	else cout << RED;
+	if (review == 0) cout << RESET << "None review" << endl;
+	else cout << review << endl;
+	
+	cout << ORANGE << "\nCustomer Menu\n" << GREEN;
+	cout << "1.Order\n2.Health Check\n3.Log Out" << RESET << endl;
+	switch (choice(1, 3)) {
+	case 1: customer_order(true, true); return;
+	case 2: customer_booking(); return;
+	case 3: 
+		do {
+			confirm = getChar("Confirm Log Out? (Y/N)");
+			if (confirm == 'Y') main();
+			else if (confirm == 'N') customerMenu();
+			else displayError("Invalid input");
+		} while (confirm != 'Y' && confirm != 'N'); 
+		return;
+	}
+}
+void staffMenu() {
+	system("cls"); logo();
+	cout << BLUE << "\nStaff Menu\n" << GREEN;
+	cout << "1.Report\n2.Customer Receipt\n3.Log Out" << RESET << endl;
+	switch (choice(1, 3)) {
+	case 1: staff_report(); return;
+	case 2: staff_customerReceipt(); return;
+	case 3: 
+		do {
+			confirm = getChar("Confirm Log Out? (Y/N)");
+			if (confirm == 'Y') main();
+			else if (confirm == 'N') staffMenu();
+			else displayError("Invalid input");
+		} while (confirm != 'Y' && confirm != 'N');
+		return;
+	}
+}
+
+int main() {
+	loginData[0] = LoginData("Staff", "staff@gmail.com", "123", false);
+	loginData[1] = LoginData("Loh Qi Sheng", "loh@gmail.com", "123", false);
+	loginData[2] = LoginData("Chan Gan Siang", "chan@gmail.com", "123", false);
+	loginData[3] = LoginData("Leong Jun Yang", "leong@gmail.com", "123", true);
+	loginData[4] = LoginData("Chang Hong Zhao", "chang@gmail.com", "123", true);
+	loginData_count += 5;
+	bookedTime[bookingTime[0]] = false;
+	bookedTime[bookingTime[1]] = false;
+	bookedTime[bookingTime[2]] = false;
+	system("cls"); logo();
+	cout << RED << "\n        Sign Up(1) " << RESET << " / " << BLUE << "Sign In(2)" << endl;
+	int c = choice(1,2);
+	if (c == 1) { // Sign Up
+		//staffMenu(); return 0;
+
+		signUp(); 
+	}
+	else { // Sign In
+		//customerMenu(); return 0;
+
+		string userType = signIn();
+		if (userType == "customer") customerMenu();
+		else if (userType == "staff") staffMenu();
+		else main();
+	}
 
 	return 0;
-}
-
-///////////////////////////////// UI /////////////////////////////////
-
-void ViewMainMenu()
-{
-	system("cls");
-	cout << "< Main Menu >" << endl;
-	cout << "You are CUSTOMER or STAFF?(C/S) > ";
-	cin >> userInput;
-
-	if (userInput == 's' || userInput == 'S')
-	{
-		do
-		{
-			cout << "E > Back | Y > Report : ";
-			cin >> userInput;
-			if (userInput == 'e' || userInput == 'E')
-				ViewMainMenu();
-			else if (userInput == 'y' || userInput == 'Y')
-				ShowReport();
-			else
-			{
-				cout << "Invalid input, please re-input" << endl;
-				userInput = '!';
-			}
-		} while (userInput == '!');
-	}
-	else if (userInput == 'c' || userInput == 'C')
-	{
-		cout << "Please write your name > ";
-		cin >> userName;
-		ViewCustomerMenu();
-	}
-}
-
-void ViewCustomerMenu()
-{
-	system("cls");
-	cout << "< Customer Menu >" << endl;
-	cout << "Here is Order Menu: " << endl;
-	ViewOrder();
-	cout << "Here is Discount Infomation: " << endl;
-	ViewDiscountInfo();
-	do
-	{
-		cout << "E > Back | Y > Order : ";
-		cin >> userInput;
-		if (userInput == 'e' || userInput == 'E')
-			ViewMainMenu();
-		else if (userInput == 'y' || userInput == 'Y')
-		{
-			ClearOrderItem(); // To make new order, clear order before
-			if(orderIndex < 1000)
-				Order();
-			else
-			{
-				cout << "Order reach max of limit..." << endl;
-				system("pause");
-				ViewMainMenu();
-			}
-		}
-		else
-		{
-			cout << "Invalid input, please re-input" << endl;
-			userInput = '!';
-		}
-	} while (userInput == '!');
-}
-
-void ViewOrder()
-{
-	int a = 20, b = 15;
-	cout << '+' << right << setw(a) << setfill('-') << '+' << setw(b) << '+' << endl;
-	cout << left << setw(a) << setfill(' ') << "| Medical" << '|' << right << setw(b) << "Price(RM) |" << endl;
-	cout << '+' << right << setw(a) << setfill('-') << '+' << setw(b) << '+' << endl;
-	cout << left << setw(a) << setfill(' ') << "| 1.Burger" << '|' << right << setw(b) << "7.80 |" << endl;
-	cout << left << setw(a) << setfill(' ') << "| 2.Pizza" << '|' << right << setw(b) << "11.50 |" << endl;
-	cout << left << setw(a) << setfill(' ') << "| 3.Cheese Burger ~" << '|' << right << setw(b) << "6.66 |" << endl;
-	cout << '+' << right << setw(a) << setfill('-') << '+' << setw(b) << '+' << endl;
-	cout << "\n" << endl;
-}
-
-void ViewDiscountInfo()
-{
-	int a = 20, b = 30, c = 15;
-	cout << '+' << right << setw(a) << setfill('-') << '+' << setw(b) << '+' << setw(c) << '+' << endl;
-	cout << left << setw(a) << setfill(' ') << "| Medical" << setw(b) << "| Requirement Spend(RM)" << setw(c) << "| Discount(%)" << "|" << endl;
-	cout << '+' << right << setw(a) << setfill('-') << '+' << setw(b) << '+' << setw(c) << '+' << endl;
-	cout << left << setw(a) << setfill(' ') << "| 1.Burger" << setw(b) << "| Greater or equal than 30" << setw(c) << "| 25" << "|" << endl;
-	cout << left << setw(a) << setfill(' ') << "| "<< setw(b) << "| Less than 30" << setw(c) << "| 20" << "|" << endl;
-	cout << left << setw(a) << setfill(' ') << "| 2.Pizza" << setw(b) << "| Greater or equal than 50" << setw(c) << "| 20" << "|" << endl;
-	cout << left << setw(a) << setfill(' ') << "| " << setw(b) << "| Less than 50" << setw(c) << "| 15" << "|" << endl;
-	cout << left << setw(a) << setfill(' ') << "| 3.Cheese Burger ~"  << setw(b) << "| Greater or equal than 1" << setw(c) << "| 66" << "|" << endl;
-	cout << left << setw(a) << setfill(' ') << "| " << setw(b) << "| Less than 1" << setw(c) << "| 0" << "|" << endl;
-	cout << '+' << right << setw(a) << setfill('-') << '+' << setw(b) << '+' << setw(c) << '+' << endl;
-	cout << "\n" << endl;
-}
-
-void ViewCurrentOrder()
-{
-	int a = 20, b = 12, c = 12;
-	cout << '+' << right << setw(a) << setfill('-') << '+' << setw(b) << '+' << setw(c) << '+' << endl;
-	cout << left << setw(a) << setfill(' ') << "| Order" << setw(b) << "| Price(RM)" << setw(c) << "| Count" << "|" << endl;
-	cout << '+' << right << setw(a) << setfill('-') << '+' << setw(b) << '+' << setw(c) << '+' << endl;
-
-	if (orderItem[0] > 0)
-		cout << left << setw(a) << setfill(' ') << "| 1.Burger" << setw(b) << "| 7.80" << "| " << setw(c - 2) << orderItem[0] << "|" << endl;
-	if (orderItem[1] > 0)
-		cout << left << setw(a) << setfill(' ') << "| 2.Pizza" << setw(b) << "| 11.50" << "| " << setw(c - 2) << orderItem[1] << "|" << endl;
-	if (orderItem[2] > 0)
-		cout << left << setw(a) << setfill(' ') << "| 3.Cheese Burger ~" << setw(b) << "| 6.66" << "| " << setw(c - 2) << orderItem[2] << "|" << endl;
-
-	cout << '+' << right << setw(a) << setfill('-') << '+' << setw(b) << '+' << setw(c) << '+' << endl;
-	cout << "\n" << endl;
-}
-
-double ViewOrderSummary()
-{
-	double subtotal[3];
-	subtotal[0] = orderItem[0] * itemPrice[0];
-	subtotal[1] = orderItem[1] * itemPrice[1];
-	subtotal[2] = orderItem[2] * itemPrice[2];
-	double discount[3];
-	discount[0] = (GetDiscountPercent(0, orderItem[0]) / 100) * subtotal[0];
-	discount[1] = (GetDiscountPercent(1, orderItem[1]) / 100) * subtotal[1];
-	discount[2] = (GetDiscountPercent(2, orderItem[2]) / 100) * subtotal[2];
-	double payable[3];
-	payable[0] = subtotal[0] - discount[0];
-	payable[1] = subtotal[1] - discount[1];
-	payable[2] = subtotal[2] - discount[2];
-	double total = subtotal[0] + subtotal[1] + subtotal[2];
-	double total_discount = discount[0] + discount[1] + discount[2];	
-	double total_payable = (payable[0] + payable[1] + payable[2]);
-	double tax_rate = 10;
-	total_payable -= total_payable * (tax_rate / 100);
-
-	int a = 20, b = 17, c = 12, d = 17, e = 16;
-	cout << '+' << right << setw(a) << setfill('-') << '+' << setw(b) << '+' << setw(c) << '+' << setw(d) << '+' << setw(e) << '+' << endl;
-	cout << left << setw(a) << setfill(' ') << "| Order" << setw(b) << "| Unit Price(RM)" << setw(c) << "| Subtotal" << setw(d) << "| Discount"  << setw(e) << "| Payable" << "|" << endl;
-	cout << '+' << right << setw(a) << setfill('-') << '+' << setw(b) << '+' << setw(c) << '+' << setw(d) << '+' << setw(e) << '+' << endl;
-	if(orderItem[0] > 0)
-		cout << left << setw(a) << setfill(' ') << "| Burger" << "| " << fixed << setprecision(2) << setw(b - 2) << itemPrice[0] << "| " << setw(c - 2) << subtotal[0] << "| " << setw(d - 2) << -discount[0] << "| " << setw(e - 2) << payable[0] << "|" << endl;
-	if (orderItem[1] > 0)
-		cout << left << setw(a) << setfill(' ') << "| Pizza" << "| " << fixed << setprecision(2) << setw(b - 2) << itemPrice[1] << "| " << setw(c - 2) << subtotal[1] << "| " << setw(d - 2) << -discount[1] << "| " << setw(e - 2) << payable[1] << "|" << endl;
-	if (orderItem[2] > 0)
-		cout << left << setw(a) << setfill(' ') << "| Cheese Burger ~" << "| " << fixed << setprecision(2) << setw(b - 2) << itemPrice[2] << "| " << setw(c - 2) << subtotal[2] << "| " << setw(d - 2) << -discount[2] << "| " << setw(e - 2) << payable[2] << "|" << endl;
-	cout << '|' << right << setw(a) << setfill(' ') << '|' << setw(b) << '|' << setw(c) << '|' << setw(d) << '|' << setw(e) << '|' << endl;
-	cout << '+' << right << setw(a) << setfill('-') << '+' << setw(b) << '+' << setw(c) << '+' << setw(d) << '+' << setw(e) << '+' << endl;
-	cout << left << setw(a) << setfill(' ') << "| " << setw(b) << "| Tax Rate(%)" << setw(c) << "| Total" << setw(d) << "| Total_Discount"  << setw(e) << "| Total_Payable" << "|" << endl;
-	cout << '+' << right << setw(a) << setfill('-') << '+' << setw(b) << '+' << setw(c) << '+' << setw(d) << '+' << setw(e) << '+' << endl;
-	cout << left << setw(a) << setfill(' ') << "| " << "| " << fixed << setprecision(2) << setw(b - 2) << tax_rate << "| " << setw(c - 2) << total << "| " << setw(d - 2) << -total_discount << "| " << setw(e - 2) << total_payable << "|" << endl;
-	cout << '|' << right << setw(a) << setfill(' ') << '|' << setw(b) << '|' << setw(c) << '|' << setw(d) << '|' << setw(e) << '|' << endl;
-	cout << '+' << right << setw(a) << setfill('-') << '+' << setw(b) << '+' << setw(c) << '+' << setw(d) << '+' << setw(e) << '+' << endl;
-
-	return total_payable;
-}
-
-void ViewPaymentMethod()
-{
-	cout << left << setw(25) << setfill('-') << "+" << "-+" << endl;
-	cout << left << setw(25) << setfill(' ') << "| Payment Method" << " |" << endl;
-	cout << left << setw(25) << setfill('-') << "+" << "-+" << endl;
-	cout << left << setw(25) << setfill(' ') << "| 1.Cash" << " |" << endl;
-	cout << left << setw(25) << setfill(' ') << "| 2.Debit/Credit Card" << " |" << endl;
-	cout << left << setw(25) << setfill(' ') << "| 3.Touch n Go" << " |" << endl;
-	cout << left << setw(25) << setfill('-') << "+" << "-+" << endl;
-}
-
-///////////////////////////////// Order /////////////////////////////////
-
-void Order()
-{
-	system("cls");
-	ViewOrder();
-	ViewDiscountInfo();
-	ViewCurrentOrder();
-
-	int medical_Index;
-	double price;
-	int qty;
-	
-	cout << "Select(1~3) > ";
-	do
-	{
-		cin >> userInput;
-		switch (userInput)
-		{
-		case '1':
-			medical_Index = 0;
-			price = 7.80; break;
-		case '2':
-			medical_Index = 1;
-			price = 11.50; break;
-		case '3':
-			medical_Index = 2;
-			price = 6.66; break;
-		default:
-			cout << "Invalid input, please re-input > ";
-			userInput = '!'; break;
-		}
-	} while (userInput == '!');
-
-	cout << "Quantity > ";
-	cin >> qty;
-
-	SubmitOneOrder(medical_Index, qty);
-
-	cout << "Continue > C | Confirm > Y :";
-	do
-	{
-		cin >> userInput;
-		if (userInput == 'c' || userInput == 'C')
-			Order();
-		else if (userInput == 'y' || userInput == 'Y')
-		{
-			system("cls");
-			ViewCurrentOrder();
-			double total_payable = ViewOrderSummary();
-
-			cout << endl << endl << "Cancel > C | Confirm > Y : ";
-			do
-			{
-				cin >> userInput;
-				if (userInput == 'c' || userInput == 'C')
-					ViewCustomerMenu();
-				else if (userInput == 'y' || userInput == 'Y')
-					Pay(total_payable);
-				else
-				{
-					cout << "Invalid input, please re-input" << endl;
-					userInput = '!';
-				}
-			} while (userInput == '!');
-		}
-		else
-		{
-			cout << "Invalid input, please re-input > ";
-			userInput = '!';
-		}
-	} while (userInput == '!');
-}
-
-void ClearOrderItem()
-{
-	orderItem[0] = 0;
-	orderItem[1] = 0;
-	orderItem[2] = 0;
-}
-
-void SubmitOneOrder(int medical_Index, int count)
-{
-	orderItem[medical_Index] += count;
-}
-
-double GetDiscountPercent(int medical_Index, int count)
-{
-	double totalPrice = orderItem[medical_Index] * itemPrice[medical_Index];
-	switch (medical_Index)
-	{
-	case 0:
-		if (totalPrice >= 30)
-			return 25;
-		else return 20;
-	case 1:
-		if (totalPrice >= 50)
-			return 20;
-		else return 15;
-	case 2:
-		if (totalPrice >= 1)
-			return 66;
-		else return 0;
-	default: return 0;
-	}
-}
-
-///////////////////////////////// Payment /////////////////////////////////
-
-void Pay(double totalPrice)
-{
-	system("cls");
-	ViewPaymentMethod();
-
-	string select_payment_method;
-	cout << endl << "Select(1~3) > ";
-	do
-	{
-		cin >> userInput;
-		switch (userInput)
-		{
-		case '1':
-			cout << "You select Cash Payment, the payment is processing..." << endl;
-			select_payment_method = "Cash"; break;
-		case '2':
-			cout << "You select Credit/Debit Card Payment, the payment is processing..." << endl;
-			select_payment_method = "Credit/Debit Card"; break;
-		case '3':
-			cout << "You select Touch n Go Payment, the payment is processing..." << endl; 
-			select_payment_method = "Touch n Go"; break;
-		default:
-			cout << "Invalid input, please re-input > ";
-			userInput = '!';
-			break;
-		}
-	} while (userInput == '!');
-
-	system("pause");
-
-	// Payment success
-	company_income += totalPrice;
-	customer_avarage_payment = company_income / (orderIndex + 1);
-	record_name[orderIndex] = userName;
-	record_payment[orderIndex] = totalPrice;
-	string payment_date = GetCurrentDate();
-	string payment_time = GetCurrentTime();
-	record_payment_date[orderIndex] = payment_date + " / " + payment_time;
-	orderIndex++;
-
-	cout << endl << "Payment success! Do you want to see receipt?\nBack to Menu > N | Yes > Y : ";
-	do
-	{
-		cin >> userInput;
-		if (userInput == 'n' || userInput == 'N')
-			ViewCustomerMenu();
-		else if (userInput == 'y' || userInput == 'Y')
-			ShowReceipt(select_payment_method, payment_date, payment_time);
-		else
-		{
-			cout << "Invalid input, please re-input > ";
-			userInput = '!';
-		}
-	} while (userInput == '!');
-}
-
-void ShowReceipt(string payment_method, string payment_date, string payment_time)
-{
-	system("cls");
-	cout << "Receipt" << endl;
-	int a = 20, b = 17, c = 12, d = 17, e = 16;
-	cout << '+' << right << setw(a) << setfill('-') << '-' << setw(b) << '-' << setw(c) << '-' << setw(d) << '-' << setw(e) << '+' << endl;
-	cout << "| Company : " << left << setw(a + b) << setfill(' ') << "miHoYo Pharmaceutical Co., Ltd."  << right << setw(c + d + 3) << "" << " |" << endl;
-	cout << "| Customer: " << left << setw(a + b) << setfill(' ') << userName  << right << setw(c + d + 3) << "Invoice No. : M" + to_string(1000 + orderIndex -1)  << " |" << endl;
-	cout << "| Sold by : " << left << setw(a + b) << setfill(' ') << "miPha Store" << right << setw(c + d + 3) << "Invoice Date. : " + payment_date << " |" << endl;
-	ViewOrderSummary();
-	cout << '|' << left << setw(a + b + c) << setfill(' ') << " Payment Method: " + payment_method << right << setw(c + d + 3) << "" << '|' << endl;
-	cout << '|' << left << setw(a + b + c) << setfill(' ') << " Payment Time: " + payment_time << right << setw(c + d + 3) << "" << '|' << endl;
-	cout << '+' << right << setw(a) << setfill('-') << '-' << setw(b) << '-' << setw(c) << '-' << setw(d) << '-' << setw(e) << '+' << endl;
-
-	cout << endl << "Back to Menu > Y: ";
-	do
-	{
-		cin >> userInput;
-		if (userInput == 'y' || userInput == 'Y')
-			ViewCustomerMenu();
-		else
-		{
-			cout << "Invalid input, please re-input > ";
-			userInput = '!';
-		}
-	} while (userInput == '!');
-}
-
-///////////////////////////////// Report /////////////////////////////////
-
-void ShowReport()
-{
-	system("cls");
-	cout << "< Report Menu >" << endl;
-	cout << "\nCompany total income: RM" << fixed << setprecision(2) << company_income << endl;
-	cout << "Customer average payment: RM" << fixed << setprecision(2) << customer_avarage_payment << endl;
-	cout << endl;
-	cout << "Order record" << endl;
-	cout << "------------" << endl;
-	for (int i = 0; i < orderIndex; i++) {
-		cout << left << setw(25) << setfill('_') << "M" + to_string(1000 + i) + ". " + record_name[i]
-			<< " pay RM" << setw(10) << fixed << setprecision(2) << record_payment[i]
-			<< " at " << setw(15) << record_payment_date[i] << endl;
-	}
-	
-
-	cout << endl << "Back to Menu > Y: ";
-	do
-	{
-		cin >> userInput;
-		if (userInput == 'y' || userInput == 'Y')
-			ViewMainMenu();
-		else
-		{
-			cout << "Invalid input, please re-input > ";
-			userInput = '!';
-		}
-	} while (userInput == '!');
-}
-
-///////////////////////////////// Functions /////////////////////////////////
-
-string GetCurrentDate()
-{
-	// 获取当前时间
-	time_t now = time(nullptr);
-	// 创建一个 tm 结构来保存本地时间
-	tm localTime;
-	// 转换为本地时间
-	localtime_s(&localTime, &now);
-
-	string date = to_string(1900 + localTime.tm_year) + "-" + to_string(1 + localTime.tm_mon) + "-" + to_string(localTime.tm_mday);
-
-	return date;
-}
-
-string GetCurrentTime()
-{
-	// 获取当前时间
-	time_t now = time(nullptr);
-	// 创建一个 tm 结构来保存本地时间
-	tm localTime;
-	// 转换为本地时间
-	localtime_s(&localTime, &now);
-
-	string min = to_string(localTime.tm_min);
-	string sec = to_string(localTime.tm_sec);
-
-	if (localTime.tm_min < 10)
-		min = "0" + min;
-	if (localTime.tm_sec < 10)
-		sec = "0" + sec;
-
-	string time = to_string(localTime.tm_hour) + ":" + min + ":" + sec;
-
-	return time;
 }
